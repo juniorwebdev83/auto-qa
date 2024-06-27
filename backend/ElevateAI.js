@@ -1,143 +1,59 @@
-// Import Axios
+// ElevateAI.js
 const axios = require('axios');
-const FormData = require('form-data');
 const fs = require('fs');
-const ElevateAI = require('./ElevateAI');
+const FormData = require('form-data');
 
-// DeclareAudioInteraction function
-const declareAudioInteraction = async (
-    language,
-    vertical,
-    downloadUri,
-    token,
-    audioTranscriptionMode,
-    includeAiResults,
-    originalFileName,
-    externalIdentifier
-) => {
-    const url = 'https://api.elevateai.com/v1/interactions/';
-    const payload = {
-        type: 'audio',
-        languageTag: language,
-        vertical: vertical,
-        audioTranscriptionMode: audioTranscriptionMode,
-        downloadUri: downloadUri,
-        includeAiResults: includeAiResults,
-        originalfilename: originalFileName,
-        externalidentifier: externalIdentifier
-    };
-    const headers = {
+const API_URL = 'https://api.elevateai.com/v1';
+
+const ElevateAI = {
+  DeclareAudioInteraction: async (languageTag, vertical, downloadUri, token, audioTranscriptionMode, includeAiResults, originalFileName) => {
+    const response = await axios.post(`${API_URL}/interactions`, {
+      type: 'audio',
+      languageTag,
+      vertical,
+      downloadUri,
+      audioTranscriptionMode,
+      includeAiResults,
+      originalFileName
+    }, {
+      headers: {
         'X-API-TOKEN': token,
         'Content-Type': 'application/json'
-    };
+      }
+    });
+    return response.data;
+  },
 
-    try {
-        const response = await axios.post(url, payload, { headers });
-        return response.data;
-    } catch (error) {
-        console.error('Error in declareAudioInteraction:', error);
-        throw error;
-    }
-};
-
-// GetInteractionStatus function
-const getInteractionStatus = async (interactionId, token) => {
-    const url = `https://api.elevateai.com/v1/interactions/${interactionId}/status`;
-    const headers = {
-        'X-API-TOKEN': token,
-        'Content-Type': 'application/json'
-    };
-
-    try {
-        const response = await axios.get(url, { headers });
-        return response.data;
-    } catch (error) {
-        console.error('Error in getInteractionStatus:', error);
-        throw error;
-    }
-};
-
-// UploadInteraction function
-const uploadInteraction = async (
-    interactionId,
-    token,
-    localFilePath,
-    fileName,
-    originalFileName
-) => {
-    const url = `https://api.elevateai.com/v1/interactions/${interactionId}/upload`;
+  UploadInteraction: async (interactionId, token, filePath, fileName) => {
     const formData = new FormData();
-    formData.append('file', fs.createReadStream(localFilePath), fileName);
-    const headers = {
+    formData.append('file', fs.createReadStream(filePath), fileName);
+    
+    const response = await axios.post(`${API_URL}/interactions/${interactionId}/upload`, formData, {
+      headers: {
         'X-API-TOKEN': token,
         ...formData.getHeaders()
-    };
+      }
+    });
+    return response.data;
+  },
 
-    try {
-        const response = await axios.post(url, formData, { headers });
-        return response.data;
-    } catch (error) {
-        console.error('Error in uploadInteraction:', error);
-        throw error;
-    }
+  GetInteractionStatus: async (interactionId, token) => {
+    const response = await axios.get(`${API_URL}/interactions/${interactionId}/status`, {
+      headers: {
+        'X-API-TOKEN': token
+      }
+    });
+    return response.data;
+  },
+
+  GetPuncutatedTranscript: async (interactionId, token) => {
+    const response = await axios.get(`${API_URL}/interactions/${interactionId}/transcripts/punctuated`, {
+      headers: {
+        'X-API-TOKEN': token
+      }
+    });
+    return response.data;
+  }
 };
 
-// GetWordByWordTranscript function
-const getWordByWordTranscript = async (interactionId, token) => {
-    const url = `https://api.elevateai.com/v1/interactions/${interactionId}/transcript`;
-    const headers = {
-        'X-API-TOKEN': token,
-        'Content-Type': 'application/json'
-    };
-
-    try {
-        const response = await axios.get(url, { headers });
-        return response.data;
-    } catch (error) {
-        console.error('Error in getWordByWordTranscript:', error);
-        throw error;
-    }
-};
-
-// GetPuncutatedTranscript function
-const getPuncutatedTranscript = async (interactionId, token) => {
-    const url = `https://api.elevateai.com/v1/interactions/${interactionId}/transcripts/punctuated`;
-    const headers = {
-        'X-API-TOKEN': token,
-        'Content-Type': 'application/json'
-    };
-
-    try {
-        const response = await axios.get(url, { headers });
-        return response.data;
-    } catch (error) {
-        console.error('Error in getPuncutatedTranscript:', error);
-        throw error;
-    }
-};
-
-// GetAIResults function
-const getAIResults = async (interactionId, token) => {
-    const url = `https://api.elevateai.com/v1/interactions/${interactionId}/ai`;
-    const headers = {
-        'X-API-TOKEN': token,
-        'Content-Type': 'application/json'
-    };
-
-    try {
-        const response = await axios.get(url, { headers });
-        return response.data;
-    } catch (error) {
-        console.error('Error in getAIResults:', error);
-        throw error;
-    }
-};
-
-module.exports = {
-    declareAudioInteraction,
-    getInteractionStatus,
-    uploadInteraction,
-    getWordByWordTranscript,
-    getPuncutatedTranscript,
-    getAIResults
-};
+module.exports = ElevateAI;
