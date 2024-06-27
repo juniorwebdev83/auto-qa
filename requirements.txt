@@ -1,0 +1,4 @@
+aiohttp==3.8.4
+Requests==2.31.0
+textual==0.38.1
+Flask==2.0.1
