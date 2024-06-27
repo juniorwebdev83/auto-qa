@@ -18,25 +18,19 @@ app.post('/api/process-audio', upload.single('audioFile'), async (req, res) => {
   try {
     const filePath = req.file.path;
     const fileName = req.file.originalname;
-    
+
     console.log(`Processing file: ${fileName}`);
-    const transcription = await processWithElevateAI(filePath, fileName);
-    
-    if (transcription) {
-      console.log('Transcription received from ElevateAI:', transcription);
-      console.log('Transcription type:', typeof transcription);
-      console.log('Transcription length:', transcription.length);
+    const result = await processWithElevateAI(filePath, fileName);
 
-      const { score, breakdown } = calculateQAScore(transcription);
-      console.log('Score calculated:', score);
+    // Clean up the uploaded file
+    fs.unlink(filePath, (err) => {
+      if (err) console.error('Error deleting temporary file:', err);
+      else console.log('Temporary file cleaned up');
+    });
 
-      // Clean up the uploaded file
-      fs.unlinkSync(filePath);
-      console.log('Temporary file cleaned up');
-
-      const response = { transcription, qaScore: score, scoreBreakdown: breakdown };
-      console.log('Full response being sent to client:', JSON.stringify(response, null, 2));
-      res.json(response);
+    if (result.transcription) {
+      console.log('Full response being sent to client:', JSON.stringify(result, null, 2));
+      res.json(result);
     } else {
       console.log('No transcription received from ElevateAI');
       res.status(500).json({ error: 'Failed to obtain transcription' });
@@ -49,50 +43,70 @@ app.post('/api/process-audio', upload.single('audioFile'), async (req, res) => {
 
 async function processWithElevateAI(filePath, fileName) {
   try {
+    console.log('Declaring audio interaction...');
     const declareResp = await ElevateAI.DeclareAudioInteraction(
       'en-us', 'default', null, TOKEN, 'highAccuracy', true, fileName
     );
     console.log('Declare response:', declareResp);
     const interactionId = declareResp.interactionIdentifier;
 
+    console.log('Uploading audio file...');
     const uploadResp = await ElevateAI.UploadInteraction(interactionId, TOKEN, filePath, fileName);
     console.log('Upload response:', uploadResp);
 
-    let status;
-    let attempts = 0;
-    const maxAttempts = 60; // 5 minutes maximum wait time
-    do {
-      const statusResp = await ElevateAI.GetInteractionStatus(interactionId, TOKEN);
-      status = statusResp.status;
-      console.log(`Current status (attempt ${attempts + 1}/${maxAttempts}):`, status);
-      if (status !== 'processed' && status !== 'processingFailed') {
-        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds between checks
-      }
-      attempts++;
-    } while (status !== 'processed' && status !== 'processingFailed' && attempts < maxAttempts);
+    console.log('Waiting for processing to complete (max 5 minutes)...');
+    const startTime = Date.now();
+    const maxWaitTime = 5 * 60 * 1000; // 5 minutes in milliseconds
 
-    if (status === 'processed') {
-      console.log('Processing completed. Fetching transcript...');
-      const transcriptResp = await ElevateAI.GetPuncutatedTranscript(interactionId, TOKEN);
-      console.log('Transcript response:', transcriptResp);
-      return transcriptResp.transcript;
-    } else if (status === 'processingFailed') {
-      throw new Error('Processing failed');
-    } else {
-      throw new Error('Processing timed out');
+    while (Date.now() - startTime < maxWaitTime) {
+      const statusResp = await ElevateAI.GetInteractionStatus(interactionId, TOKEN);
+      console.log('Current status:', statusResp.status);
+
+      if (statusResp.status === 'processed') {
+        console.log('Processing completed. Fetching transcript...');
+        const transcriptResp = await ElevateAI.GetPuncutatedTranscript(interactionId, TOKEN);
+        console.log('Transcript response:', transcriptResp);
+
+        if (!transcriptResp || !transcriptResp.sentenceSegments) {
+          throw new Error('Transcript not found in the response');
+        }
+
+        // Concatenate the phrases to form the full transcript
+        const transcript = transcriptResp.sentenceSegments.map(segment => segment.phrase).join(' ');
+
+        console.log('Transcript received. Length:', transcript.length);
+
+        console.log('Calculating QA score...');
+        const { score, breakdown } = calculateQAScore(transcript);
+        console.log('Score calculated:', score);
+
+        return {
+          transcription: transcript,
+          qaScore: score,
+          scoreBreakdown: breakdown
+        };
+      } else if (statusResp.status === 'processingFailed') {
+        throw new Error('ElevateAI processing failed');
+      }
+
+      // Wait for 10 seconds before checking again
+      await new Promise(resolve => setTimeout(resolve, 10000));
     }
+
+    throw new Error('Processing timed out after 5 minutes');
   } catch (error) {
     console.error('Error in processWithElevateAI:', error);
-    return null;
+    throw error;
   }
 }
+
 
 function calculateQAScore(transcription) {
   if (!transcription) {
     console.log('No transcription provided to calculateQAScore');
     return { score: 0, breakdown: [] };
   }
-  
+
   const lowercaseTranscript = transcription.toLowerCase();
   const criteria = [
     { points: 2, criterion: "Agent readiness", check: () => true },
