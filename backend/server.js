@@ -108,21 +108,22 @@ function calculateQAScore(transcription) {
   }
 
   const lowercaseTranscript = transcription.toLowerCase();
-const criteria = [
-  { points: 2, criterion: "Agent readiness", check: () => true },
-  { points: 4, criterion: "Correct introduction", check: () => /thank you for calling hotel reservations, my name is/i.test(lowercaseTranscript) },
-  { points: 4, criterion: "Acknowledge request", check: () => /how may i assist you/i.test(lowercaseTranscript) },
-  { points: 10, criterion: "Confirm information", check: () => /(name|itinerary|hotel|dates)/i.test(lowercaseTranscript) },
-  { points: 10, criterion: "Call efficiency", check: () => /hold/i.test(lowercaseTranscript) && /update/i.test(lowercaseTranscript) },
-  { points: 15, criterion: "Agent control", check: () => /it is my pleasure to help you/i.test(lowercaseTranscript) && /(alternative|solution)/i.test(lowercaseTranscript) },
-  { points: 15, criterion: "Clear communication", check: () => /(mr\.|ms\.|mrs\.|sir|ma'am)/i.test(lowercaseTranscript) },
-  { points: 15, criterion: "Recap and set expectations", check: () => /recap|summary|outcome|expectations/i.test(lowercaseTranscript) }
-];
 
+  // Define criteria with regular expressions
+  const criteria = [
+    { points: 2, criterion: "Agent readiness", check: () => true },
+    { points: 4, criterion: "Correct introduction", check: () => /(?:my name is|i'm)\s+[a-z]+/i.test(lowercaseTranscript) },
+    { points: 4, criterion: "Acknowledge request", check: () => /how may i help you/i.test(lowercaseTranscript) },
+    { points: 10, criterion: "Confirm information", check: () => /(?:name|itinerary|hotel|dates)/i.test(lowercaseTranscript) },
+    { points: 10, criterion: "Call efficiency", check: () => /hold/i.test(lowercaseTranscript) && /update/i.test(lowercaseTranscript) },
+    { points: 15, criterion: "Agent control", check: () => /it is my pleasure to help you/i.test(lowercaseTranscript) && /(?:alternative|solution)/i.test(lowercaseTranscript) },
+    { points: 15, criterion: "Clear communication", check: () => /(?:mr\.|ms\.|mrs\.|sir|ma'am)/i.test(lowercaseTranscript) }
+  ];
 
-  const breakdown = criteria.map(c => ({
-    criterion: c.criterion,
-    score: c.check() ? c.points : 0
+  // Calculate score and breakdown
+  const breakdown = criteria.map(criterion => ({
+    criterion: criterion.criterion,
+    score: criterion.check() ? criterion.points : 0
   }));
 
   const score = breakdown.reduce((total, item) => total + item.score, 0);
