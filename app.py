@@ -1,5 +1,6 @@
 import os
 from flask import Flask, request, jsonify, render_template
+from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import time
 import ElevateAI
@@ -8,6 +9,7 @@ UPLOAD_FOLDER = 'uploads/'
 ALLOWED_EXTENSIONS = {'wav', 'mp3', 'm4a'}
 
 app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_PATH'] = 1000000  # 1 MB limit
 
@@ -49,7 +51,7 @@ def process_with_elevateai(file_path, file_name):
         declare_resp = ElevateAI.DeclareAudioInteraction(
             'en-us', 'default', None, ELEVATE_AI_TOKEN, 'highAccuracy', True, file_name
         )
-        interaction_id = declare_resp['interactionIdentifier']
+        interaction_id = declare_resp.json()['interactionIdentifier']
     except Exception as e:
         print(f"Error in DeclareAudioInteraction: {e}")
         raise
@@ -66,14 +68,14 @@ def process_with_elevateai(file_path, file_name):
     while time.time() - start_time < max_wait_time:
         try:
             status_resp = ElevateAI.GetInteractionStatus(interaction_id, ELEVATE_AI_TOKEN)
-            if status_resp['status'] == 'processed':
+            if status_resp.json()['status'] == 'processed':
                 transcript_resp = ElevateAI.GetPuncutatedTranscript(interaction_id, ELEVATE_AI_TOKEN)
-                if not transcript_resp or not transcript_resp['sentenceSegments']:
+                if not transcript_resp or not transcript_resp.json()['sentenceSegments']:
                     raise ValueError('Transcript not found in the response')
-                transcript = ' '.join(segment['phrase'] for segment in transcript_resp['sentenceSegments'])
+                transcript = ' '.join(segment['phrase'] for segment in transcript_resp.json()['sentenceSegments'])
                 score, breakdown = calculate_qa_score(transcript)
                 return {'transcription': transcript, 'qaScore': score, 'scoreBreakdown': breakdown}
-            elif status_resp['status'] == 'processingFailed':
+            elif status_resp.json()['status'] == 'processingFailed':
                 raise ValueError('ElevateAI processing failed')
         except Exception as e:
             print(f"Error in processing status or fetching transcript: {e}")
