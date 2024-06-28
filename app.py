@@ -1,5 +1,5 @@
 import os
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, redirect, url_for
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import time
@@ -46,18 +46,27 @@ def process_audio():
     else:
         return jsonify({'error': 'Invalid file format'}), 400
 
+@app.route('/results')
+def results():
+    result = request.args.get('result')
+    return render_template('results.html', result=result)
+
 def process_with_elevateai(file_path, file_name):
     try:
         declare_resp = ElevateAI.DeclareAudioInteraction(
             'en-us', 'default', None, ELEVATE_AI_TOKEN, 'highAccuracy', True, file_name
         )
-        interaction_id = declare_resp.json()['interactionIdentifier']
+        declare_resp = declare_resp.json()  # Ensure the response is JSON
+        print(f"DeclareAudioInteraction Response: {declare_resp}")
+        interaction_id = declare_resp['interactionIdentifier']
     except Exception as e:
         print(f"Error in DeclareAudioInteraction: {e}")
         raise
 
     try:
-        ElevateAI.UploadInteraction(interaction_id, ELEVATE_AI_TOKEN, file_path, file_name)
+        upload_resp = ElevateAI.UploadInteraction(interaction_id, ELEVATE_AI_TOKEN, file_path, file_name)
+        upload_resp = upload_resp.json()  # Ensure the response is JSON
+        print(f"UploadInteraction Response: {upload_resp}")
     except Exception as e:
         print(f"Error in UploadInteraction: {e}")
         raise
@@ -68,14 +77,18 @@ def process_with_elevateai(file_path, file_name):
     while time.time() - start_time < max_wait_time:
         try:
             status_resp = ElevateAI.GetInteractionStatus(interaction_id, ELEVATE_AI_TOKEN)
-            if status_resp.json()['status'] == 'processed':
+            status_resp = status_resp.json()  # Ensure the response is JSON
+            print(f"GetInteractionStatus Response: {status_resp}")
+            if status_resp['status'] == 'processed':
                 transcript_resp = ElevateAI.GetPuncutatedTranscript(interaction_id, ELEVATE_AI_TOKEN)
-                if not transcript_resp or not transcript_resp.json()['sentenceSegments']:
+                transcript_resp = transcript_resp.json()  # Ensure the response is JSON
+                print(f"GetPuncutatedTranscript Response: {transcript_resp}")
+                if not transcript_resp or not transcript_resp['sentenceSegments']:
                     raise ValueError('Transcript not found in the response')
-                transcript = ' '.join(segment['phrase'] for segment in transcript_resp.json()['sentenceSegments'])
+                transcript = ' '.join(segment['phrase'] for segment in transcript_resp['sentenceSegments'])
                 score, breakdown = calculate_qa_score(transcript)
                 return {'transcription': transcript, 'qaScore': score, 'scoreBreakdown': breakdown}
-            elif status_resp.json()['status'] == 'processingFailed':
+            elif status_resp['status'] == 'processingFailed':
                 raise ValueError('ElevateAI processing failed')
         except Exception as e:
             print(f"Error in processing status or fetching transcript: {e}")
