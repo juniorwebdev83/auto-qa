@@ -9,13 +9,33 @@
         body {
             padding-top: 56px;
         }
+
         footer {
             background-color: #343a40;
             color: white;
             padding: 10px 0;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
         }
+
         .container {
             max-width: 960px;
+            margin-top: 20px;
+        }
+
+        .results {
+            margin-top: 20px;
+        }
+
+        .qa-score {
+            font-weight: bold;
+            color: blue;
+        }
+
+        .highlight {
+            font-weight: bold;
+            color: blue;
         }
     </style>
 </head>
@@ -23,20 +43,20 @@
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
         <a class="navbar-brand" href="#">Audio Processing App</a>
     </nav>
-    
-    <div class="container mt-5">
+
+    <div class="container">
         <h1>Processing Results</h1>
-        <div id="result"></div>
+        <div id="result" class="results"></div>
     </div>
 
-    <footer class="text-center mt-5">
+    <footer class="text-center">
         <div class="container">
             <p>&copy; 2024 Audio Processing App. All Rights Reserved.</p>
         </div>
     </footer>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             const result = sessionStorage.getItem('result');
             if (result) {
                 const parsedResult = JSON.parse(result);
@@ -45,7 +65,7 @@
                 const transcription = document.createElement('p');
                 transcription.textContent = 'Transcription:';
                 const transcriptionContent = document.createElement('pre');
-                transcriptionContent.textContent = parsedResult.transcription;
+                transcriptionContent.innerHTML = highlightKeywords(parsedResult.transcription);
 
                 const sentiment = document.createElement('p');
                 sentiment.textContent = `Sentiment: ${parsedResult.sentiment}`;
@@ -53,23 +73,39 @@
                 const summary = document.createElement('p');
                 summary.textContent = `Summary: ${parsedResult.summary}`;
 
+                // Create QA Score element
                 const qaScore = document.createElement('p');
-                qaScore.textContent = `QA Score: ${parsedResult.qaScore}`;
+                qaScore.innerHTML = `<span class="qa-score">QA Score: ${parsedResult.qaScore}</span>`;
+
+                // Check if silenceDuration is defined before using toFixed
+                const silenceDuration = document.createElement('p');
+                silenceDuration.textContent = parsedResult.silenceDuration ? `Silence Duration: ${parsedResult.silenceDuration.toFixed(2)} seconds` : 'Silence Duration: N/A';
 
                 const scoreBreakdown = document.createElement('p');
                 scoreBreakdown.textContent = 'Score Breakdown:';
                 const breakdownContent = document.createElement('pre');
                 breakdownContent.textContent = JSON.stringify(parsedResult.scoreBreakdown, null, 2);
 
+                // Append elements to results container
                 resultElement.appendChild(transcription);
                 resultElement.appendChild(transcriptionContent);
                 resultElement.appendChild(sentiment);
                 resultElement.appendChild(summary);
-                resultElement.appendChild(qaScore);
+                resultElement.appendChild(qaScore); // Append QA Score element
+                resultElement.appendChild(silenceDuration);
                 resultElement.appendChild(scoreBreakdown);
                 resultElement.appendChild(breakdownContent);
             }
         });
+
+        function highlightKeywords(transcription) {
+            const keywords = ['group', 'refund', 'block', 'change dates'];
+            keywords.forEach(keyword => {
+                const regex = new RegExp(`\\b${keyword}\\b`, 'gi');
+                transcription = transcription.replace(regex, `<span class="highlight">${keyword}</span>`);
+            });
+            return transcription;
+        }
     </script>
 </body>
 </html>
