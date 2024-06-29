@@ -1,5 +1,6 @@
 import os
 import time
+import requests
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
@@ -13,7 +14,7 @@ CORS(app)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_PATH'] = 1000000  # 1 MB limit
 
-ELEVATE_AI_TOKEN = '4c90d090-0115-4fed-9546-d5f446b4459b'  # Replace with your token
+ELEVATE_AI_TOKEN = '4c90d090-0115-4fed-9546-d5f446b4459b'  # Your ElevateAI token
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -51,53 +52,50 @@ def process_audio():
         return jsonify({'error': 'Invalid file format'}), 400
 
 def process_with_elevateai(file_path, file_name):
-    try:
-        declare_resp = ElevateAI.DeclareAudioInteraction(
-            'en-us', 'default', None, ELEVATE_AI_TOKEN, 'highAccuracy', True, file_name
-        )
-        interaction_id = declare_resp['interactionIdentifier']
-    except Exception as e:
-        print(f"Error in DeclareAudioInteraction: {e}")
-        raise
+    token = ELEVATE_AI_TOKEN
+    langaugeTag = "en-us"
+    vert = "default"
+    transcriptionMode = "highAccuracy"
 
-    try:
-        ElevateAI.UploadInteraction(interaction_id, ELEVATE_AI_TOKEN, file_path, file_name)
-    except Exception as e:
-        print(f"Error in UploadInteraction: {e}")
-        raise
+    # Step 2: Declare interaction
+    declareResp = ElevateAI.DeclareAudioInteraction(langaugeTag, vert, None, token, transcriptionMode, False)
+    declareJson = declareResp
+    interactionId = declareJson["interactionIdentifier"]
 
-    start_time = time.time()
-    max_wait_time = 5 * 60  # 5 minutes
+    # Step 3: Upload interaction
+    ElevateAI.UploadInteraction(interactionId, token, file_path, file_name)
 
-    while time.time() - start_time < max_wait_time:
-        try:
-            status_resp = ElevateAI.GetInteractionStatus(interaction_id, ELEVATE_AI_TOKEN)
-            if status_resp['status'] == 'processed':
-                transcript_resp = ElevateAI.GetPuncutatedTranscript(interaction_id, ELEVATE_AI_TOKEN)
-                sentiment_resp = ElevateAI.GetSentimentAnalysis(interaction_id, ELEVATE_AI_TOKEN)
-                summary_resp = ElevateAI.GetSummary(interaction_id, ELEVATE_AI_TOKEN)
+    # Step 4: Check status until processed
+    while True:
+        getInteractionStatusResponse = ElevateAI.GetInteractionStatus(interactionId, token)
+        getInteractionStatusResponseJson = getInteractionStatusResponse
+        if getInteractionStatusResponseJson["status"] == "processed":
+            break
+        time.sleep(30)
 
-                if not transcript_resp or not transcript_resp['sentenceSegments']:
-                    raise ValueError('Transcript not found in the response')
-                
-                transcript = ' '.join(segment['phrase'] for segment in transcript_resp['sentenceSegments'])
-                score, breakdown = calculate_qa_score(transcript)
+    # Step 5: Retrieve results
+    getPuncutatedTranscriptResponse = ElevateAI.GetPuncutatedTranscript(interactionId, token)
+    transcript_resp = getPuncutatedTranscriptResponse
+    if not transcript_resp or not transcript_resp['sentenceSegments']:
+        raise ValueError('Transcript not found in the response')
+    transcript = '\n'.join(segment['phrase'] for segment in transcript_resp['sentenceSegments'])
 
-                return {
-                    'transcription': transcript,
-                    'qaScore': score,
-                    'scoreBreakdown': breakdown,
-                    'sentiment': sentiment_resp,
-                    'summary': summary_resp['summary']
-                }
-            elif status_resp['status'] == 'processingFailed':
-                raise ValueError('ElevateAI processing failed')
-        except Exception as e:
-            print(f"Error in processing status or fetching transcript: {e}")
-            raise
-        time.sleep(10)
+    getAIResultsResponse = ElevateAI.GetAIResults(interactionId, token)
+    ai_results_resp = getAIResultsResponse
+    sentiment = ai_results_resp.get('sentiment', 'Unknown')
+    summary = ai_results_resp.get('summary', 'No summary available')
 
-    raise TimeoutError('Processing timed out after 5 minutes')
+    score, breakdown = calculate_qa_score(transcript)
+
+    result = {
+        'transcription': transcript,
+        'qaScore': score,
+        'scoreBreakdown': breakdown,
+        'sentiment': sentiment,
+        'summary': summary
+    }
+
+    return result
 
 def calculate_qa_score(transcription):
     criteria = [

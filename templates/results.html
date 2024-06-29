@@ -1,32 +1,73 @@
-<!-- Save this as results.html in the templates folder -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <title>Audio Processing Results</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        body {
+            padding-top: 56px;
+        }
+        footer {
+            background-color: #343a40;
+            color: white;
+            padding: 10px 0;
+        }
+        .container {
+            max-width: 960px;
+        }
+    </style>
 </head>
 <body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <a class="navbar-brand" href="#">Audio Processing App</a>
+    </nav>
+    
     <div class="container mt-5">
-        <h1 class="text-center">Transcription and QA Score</h1>
-        <div id="transcription" class="mt-3"></div>
-        <div id="qaScore" class="mt-3"></div>
-        <div id="scoreBreakdown" class="mt-3"></div>
+        <h1>Processing Results</h1>
+        <div id="result"></div>
     </div>
-    <script>
-        document.addEventListener('DOMContentLoaded', (event) => {
-            const result = JSON.parse(sessionStorage.getItem('result'));
-            if (result) {
-                const transcriptionDiv = document.getElementById('transcription');
-                const qaScoreDiv = document.getElementById('qaScore');
-                const scoreBreakdownDiv = document.getElementById('scoreBreakdown');
 
-                transcriptionDiv.innerHTML = `<h3>Transcription</h3><pre>${result.transcription}</pre>`;
-                qaScoreDiv.innerHTML = `<h3>QA Score</h3><p>${result.qaScore}</p>`;
-                scoreBreakdownDiv.innerHTML = `<h3>Score Breakdown</h3><pre>${JSON.stringify(result.scoreBreakdown, null, 2)}</pre>`;
-            } else {
-                transcriptionDiv.innerHTML = '<p>No results to display</p>';
+    <footer class="text-center mt-5">
+        <div class="container">
+            <p>&copy; 2024 Audio Processing App. All Rights Reserved.</p>
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const result = sessionStorage.getItem('result');
+            if (result) {
+                const parsedResult = JSON.parse(result);
+                const resultElement = document.getElementById('result');
+
+                const transcription = document.createElement('p');
+                transcription.textContent = 'Transcription:';
+                const transcriptionContent = document.createElement('pre');
+                transcriptionContent.textContent = parsedResult.transcription;
+
+                const sentiment = document.createElement('p');
+                sentiment.textContent = `Sentiment: ${parsedResult.sentiment}`;
+
+                const summary = document.createElement('p');
+                summary.textContent = `Summary: ${parsedResult.summary}`;
+
+                const qaScore = document.createElement('p');
+                qaScore.textContent = `QA Score: ${parsedResult.qaScore}`;
+
+                const scoreBreakdown = document.createElement('p');
+                scoreBreakdown.textContent = 'Score Breakdown:';
+                const breakdownContent = document.createElement('pre');
+                breakdownContent.textContent = JSON.stringify(parsedResult.scoreBreakdown, null, 2);
+
+                resultElement.appendChild(transcription);
+                resultElement.appendChild(transcriptionContent);
+                resultElement.appendChild(sentiment);
+                resultElement.appendChild(summary);
+                resultElement.appendChild(qaScore);
+                resultElement.appendChild(scoreBreakdown);
+                resultElement.appendChild(breakdownContent);
             }
         });
     </script>
